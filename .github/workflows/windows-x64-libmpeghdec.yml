@@ -151,8 +151,8 @@ jobs:
           fi
 
           grep -E "libmpeghdec|nonfree|License" ffbuild/config.log | tail -n 80 || true
-          grep -R "#define CONFIG_LIBMPEGHDEC_DECODER 1" config.h ffbuild/config.h 2>/dev/null || \
-            { echo "CONFIG_LIBMPEGHDEC_DECODER not found in config.h"; exit 1; }
+          grep -R "#define CONFIG_LIBMPEGHDEC_DECODER 1" config.h ffbuild/config.h config_components.h ffbuild/config_components.h 2>/dev/null || \
+            { echo "CONFIG_LIBMPEGHDEC_DECODER not found in generated config headers"; cat config_components.h 2>/dev/null || cat ffbuild/config_components.h 2>/dev/null; exit 1; }
 
       - name: Build FFmpeg
         run: |

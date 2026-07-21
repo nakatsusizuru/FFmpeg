@@ -6,7 +6,7 @@ on:
       mpeghdec_repository:
         description: GitHub repository to use for libmpeghdec
         required: true
-        default: Fraunhofer-IIS/mpeghdec
+        default: nakatsusizuru/mpeghdec
       mpeghdec_ref:
         description: Branch, tag, or commit to use for libmpeghdec
         required: true
@@ -48,7 +48,7 @@ jobs:
       - name: Checkout libmpeghdec
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.inputs.mpeghdec_repository || 'Fraunhofer-IIS/mpeghdec' }}
+          repository: ${{ github.event.inputs.mpeghdec_repository || 'nakatsusizuru/mpeghdec' }}
           ref: ${{ github.event.inputs.mpeghdec_ref || 'main' }}
           path: mpeghdec
 
@@ -97,13 +97,18 @@ jobs:
       - name: Configure FFmpeg
         run: |
           set -euo pipefail
+          workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
+          deps_prefix="$workspace/deps/mingw64"
+
           cd ffmpeg
 
-          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/deps/mingw64/share/pkgconfig"
+          export PKG_CONFIG_PATH="$deps_prefix/share/pkgconfig"
           export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+          pkg-config --define-prefix --modversion mpeghdec
+          pkg-config --define-prefix --cflags --libs mpeghdec
 
           ./configure \
-            --prefix="$GITHUB_WORKSPACE/ffmpeg-install" \
+            --prefix="$workspace/ffmpeg-install" \
             --target-os=mingw32 \
             --arch=x86_64 \
             --enable-static \
@@ -113,11 +118,11 @@ jobs:
             --enable-nonfree \
             --enable-libmpeghdec \
             --pkg-config=pkg-config \
-            --extra-cflags="-I$GITHUB_WORKSPACE/deps/mingw64/include" \
-            --extra-ldflags="-L$GITHUB_WORKSPACE/deps/mingw64/lib" \
+            --extra-cflags="-I$deps_prefix/include" \
+            --extra-ldflags="-L$deps_prefix/lib" \
             --extra-libs="-lstdc++"
 
-          grep -E "libmpeghdec|nonfree|License" config.log | tail -n 80 || true
+          grep -E "libmpeghdec|nonfree|License" ffbuild/config.log | tail -n 80 || true
           grep "#define CONFIG_LIBMPEGHDEC_DECODER 1" config.h
 
       - name: Build FFmpeg
@@ -130,15 +135,16 @@ jobs:
       - name: Verify binaries
         run: |
           set -euo pipefail
-          "$GITHUB_WORKSPACE/ffmpeg/ffmpeg.exe" -hide_banner -decoders | grep libmpeghdec
-          "$GITHUB_WORKSPACE/ffmpeg/ffmpeg.exe" -hide_banner -buildconf
+          workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
+          "$workspace/ffmpeg/ffmpeg.exe" -hide_banner -decoders | grep libmpeghdec
+          "$workspace/ffmpeg/ffmpeg.exe" -hide_banner -buildconf
 
       - name: Upload configure log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-config-log
-          path: ffmpeg/config.log
+          path: ffmpeg/ffbuild/config.log
           if-no-files-found: ignore
 
       - name: Package artifact

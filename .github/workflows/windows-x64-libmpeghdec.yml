@@ -107,6 +107,31 @@ jobs:
 
           grep -E "libmpeghdec|nonfree|License|ffmpeg|ffprobe" ffbuild/config.log | tail -n 80 || true
 
+      - name: Diagnostic libmpeghdec init
+        run: |
+          set -euo pipefail
+          workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
+          deps_prefix="$workspace/deps/mingw64"
+          cat > /tmp/test_mpeghdec.cpp <<'EOF'
+          #include <cstdio>
+          #include <mpeghdecoder.h>
+          int main() {
+              int cicps[] = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 17, 19};
+              for (size_t i = 0; i < sizeof(cicps)/sizeof(cicps[0]); ++i) {
+                  int cicp = cicps[i];
+                  mpeghdecoder_handle* h = mpeghdecoder_init(cicp);
+                  printf("cicp=%2d -> %p\n", cicp, (void*)h);
+                  if (h) mpeghdecoder_free(h);
+              }
+              return 0;
+          }
+          EOF
+          g++ -static-libgcc -static-libstdc++ -o /tmp/test_mpeghdec.exe /tmp/test_mpeghdec.cpp \
+            -I"$deps_prefix/include" -L"$deps_prefix/lib" -lmpeghdec -lwinpthread || true
+          if [ -f /tmp/test_mpeghdec.exe ]; then
+            PATH="$deps_prefix/bin:/mingw64/bin:$PATH" /tmp/test_mpeghdec.exe || true
+          fi
+
       - name: Build FFmpeg
         run: |
           set -euo pipefail

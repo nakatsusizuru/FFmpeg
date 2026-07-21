@@ -139,6 +139,9 @@ jobs:
             --disable-debug
             --enable-nonfree
             --enable-libmpeghdec
+            --enable-ffmpeg
+            --enable-ffprobe
+            --enable-threads
             --pkg-config=pkg-config
             --extra-cflags="-I$deps_prefix/include -DMPEGHDEC_STATIC"
             --extra-ldflags="-L$deps_prefix/lib"
@@ -157,7 +160,9 @@ jobs:
         run: |
           set -euo pipefail
           cd ffmpeg
-          make -j"$(nproc)" ffmpeg ffprobe
+          echo "=== CONFIG_FFMPEG/FFPROBE status ==="
+          grep -E "CONFIG_FFMPEG|CONFIG_FFPROBE" config_components.h
+          make -j"$(nproc)"
           make install-progs
 
       - name: Verify binaries

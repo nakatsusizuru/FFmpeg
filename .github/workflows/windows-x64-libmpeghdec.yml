@@ -41,12 +41,12 @@ jobs:
 
     steps:
       - name: Checkout FFmpeg
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: ffmpeg
 
       - name: Checkout libmpeghdec
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.event.inputs.mpeghdec_repository || 'nakatsusizuru/mpeghdec' }}
           ref: ${{ github.event.inputs.mpeghdec_ref || 'main' }}
@@ -151,7 +151,7 @@ jobs:
           fi
 
           grep -E "libmpeghdec|nonfree|License" ffbuild/config.log | tail -n 80 || true
-          grep "#define CONFIG_LIBMPEGHDEC_DECODER 1" config.h
+          grep "#define CONFIG_LIBMPEGHDEC_DECODER 1" ffbuild/config.h
 
       - name: Build FFmpeg
         run: |
@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload configure log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ffmpeg-config-log
           path: ffmpeg/ffbuild/config.log
@@ -187,7 +187,7 @@ jobs:
           7z a ffmpeg-windows-x64-libmpeghdec.zip ./artifact/*
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ffmpeg-windows-x64-libmpeghdec
           path: ffmpeg-windows-x64-libmpeghdec.zip

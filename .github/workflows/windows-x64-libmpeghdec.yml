@@ -73,7 +73,7 @@ jobs:
           deps_prefix="$workspace/deps/mingw64"
           install_prefix="$workspace/ffmpeg-install"
 
-          export PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig:$deps_prefix/share/pkgconfig"
+          export PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig:$deps_prefix/share/pkgconfig:/mingw64/lib/pkgconfig"
 
           cd ffmpeg
 

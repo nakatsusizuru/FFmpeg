@@ -60,7 +60,8 @@ jobs:
           cmake -S mpeghdec -B build-mpeghdec -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$deps_prefix" \
-            -DBUILD_SHARED_LIBS=OFF
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_CXX_FLAGS="-D_SH_DENYNO=0x40 -D_S_IREAD=0400 -D_S_IWRITE=0200"
 
           cmake --build build-mpeghdec --config Release
           cmake --install build-mpeghdec --config Release

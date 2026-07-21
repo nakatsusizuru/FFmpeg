@@ -96,8 +96,6 @@ jobs:
             --enable-libmpeghdec \
             --enable-ffmpeg \
             --enable-ffprobe \
-            --enable-ffplay \
-            --enable-sdl2 \
             --pkg-config="$PKG_CONFIG" \
             --extra-cflags="-I$deps_prefix/include -DMPEGHDEC_STATIC" \
             --extra-ldflags="-static -L$deps_prefix/lib" \

@@ -1,32 +1,11 @@
-name: Windows x64 FFmpeg with libmpeghdec
+name: Windows x64 FFmpeg with libmpeghdec (Simple)
 
 on:
   workflow_dispatch:
-    inputs:
-      mpeghdec_repository:
-        description: GitHub repository to use for libmpeghdec
-        required: true
-        default: nakatsusizuru/mpeghdec
-      mpeghdec_ref:
-        description: Branch, tag, or commit to use for libmpeghdec
-        required: true
-        default: main
   push:
     branches:
       - master
       - main
-    paths:
-      - ".github/workflows/windows-x64-libmpeghdec.yml"
-      - "configure"
-      - "ffbuild/**"
-      - "fftools/**"
-      - "libavcodec/**"
-      - "libavdevice/**"
-      - "libavfilter/**"
-      - "libavformat/**"
-      - "libavutil/**"
-      - "libswresample/**"
-      - "libswscale/**"
 
 permissions:
   contents: read
@@ -48,8 +27,8 @@ jobs:
       - name: Checkout libmpeghdec
         uses: actions/checkout@v7
         with:
-          repository: ${{ github.event.inputs.mpeghdec_repository || 'nakatsusizuru/mpeghdec' }}
-          ref: ${{ github.event.inputs.mpeghdec_ref || 'main' }}
+          repository: nakatsusizuru/mpeghdec
+          ref: main
           path: mpeghdec
 
       - name: Set up MSYS2
@@ -70,6 +49,7 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-SDL2
 
       - name: Build and install libmpeghdec
         run: |
@@ -80,81 +60,43 @@ jobs:
           cmake -S mpeghdec -B build-mpeghdec -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$deps_prefix" \
-            -DBUILD_SHARED_LIBS=OFF \
-            -Dmpeghdec_BUILD_DECODER=ON \
-            -Dmpeghdec_BUILD_UIMANAGER=OFF \
-            -Dmpeghdec_BUILD_BINARIES=OFF \
-            -Dmpeghdec_BUILD_DOC=OFF
+            -DBUILD_SHARED_LIBS=OFF
 
           cmake --build build-mpeghdec --config Release
           cmake --install build-mpeghdec --config Release
-
-          pc_file="$deps_prefix/share/pkgconfig/mpeghdec.pc"
-          cat > "$pc_file" <<EOF
-          prefix=$deps_prefix
-          includedir=\${prefix}/include
-          libdir=\${prefix}/lib
-
-          Name: mpeghdec
-          Description: The Fraunhofer MPEG-H decoder
-          URL: https://github.com/Fraunhofer-IIS/mpeghdec
-          Version: 4.0.0
-          Cflags: -I\${includedir} -DMPEGHDEC_STATIC
-          Libs: -L\${libdir} -lmpeghdec -lstdc++ -lwinpthread -lm
-          EOF
-
-          export PKG_CONFIG_PATH="$deps_prefix/share/pkgconfig"
-          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
-          cat "$pc_file"
-          pkg-config --define-prefix --modversion mpeghdec
-          pkg-config --define-prefix --cflags --libs mpeghdec
-
-          cat > /tmp/check_mpeghdec.c <<'EOF'
-          #include <mpeghdec/mpeghdecoder.h>
-          int main(void) {
-              return mpeghdecoder_init(0) != 0;
-          }
-          EOF
-          gcc /tmp/check_mpeghdec.c $(pkg-config --define-prefix --cflags --libs mpeghdec) -o /tmp/check_mpeghdec.exe
 
       - name: Configure FFmpeg
         run: |
           set -euo pipefail
           workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
           deps_prefix="$workspace/deps/mingw64"
+          install_prefix="$workspace/ffmpeg-install"
+
+          export PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig:$deps_prefix/share/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
 
           cd ffmpeg
 
-          export PKG_CONFIG_PATH="$deps_prefix/share/pkgconfig"
-          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
-          pkg-config --define-prefix --modversion mpeghdec
-          pkg-config --define-prefix --cflags --libs mpeghdec
+          ./configure \
+            --prefix="$install_prefix" \
+            --target-os=mingw32 \
+            --arch=x86_64 \
+            --enable-static \
+            --disable-shared \
+            --disable-doc \
+            --disable-debug \
+            --enable-nonfree \
+            --enable-libmpeghdec \
+            --enable-ffmpeg \
+            --enable-ffprobe \
+            --enable-ffplay \
+            --enable-sdl2 \
+            --pkg-config=pkg-config \
+            --extra-cflags="-I$deps_prefix/include -DMPEGHDEC_STATIC" \
+            --extra-ldflags="-static -L$deps_prefix/lib" \
+            --extra-libs="-static-libgcc -static-libstdc++ -lstdc++ -lwinpthread -Wl,-Bstatic -lmpeghdec"
 
-          configure_args=(
-            --prefix="$workspace/ffmpeg-install"
-            --target-os=mingw32
-            --arch=x86_64
-            --enable-static
-            --disable-shared
-            --disable-doc
-            --disable-debug
-            --enable-nonfree
-            --enable-libmpeghdec
-            --enable-ffmpeg
-            --enable-ffprobe
-            --pkg-config=pkg-config
-            --extra-cflags="-I$deps_prefix/include -DMPEGHDEC_STATIC"
-            --extra-ldflags="-L$deps_prefix/lib"
-            --extra-libs="-lstdc++ -lwinpthread"
-          )
-
-          if ! ./configure "${configure_args[@]}"; then
-            tail -n 200 ffbuild/config.log || true
-            exit 1
-          fi
-
-          grep -E "libmpeghdec|nonfree|License" ffbuild/config.log | tail -n 80 || true
-          grep "#define CONFIG_LIBMPEGHDEC_DECODER 1" config_components.h
+          grep -E "libmpeghdec|nonfree|License|ffplay|ffmpeg|ffprobe" ffbuild/config.log | tail -n 80 || true
 
       - name: Build FFmpeg
         run: |
@@ -162,33 +104,27 @@ jobs:
           cd ffmpeg
           make -j"$(nproc)"
 
+      - name: Install FFmpeg
+        run: |
+          set -euo pipefail
+          cd ffmpeg
+          make install
+
       - name: Verify binaries
         run: |
           set -euo pipefail
           workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
-          cd "$workspace/ffmpeg"
-          ls -la ffmpeg.exe ffprobe.exe
+          cd "$workspace/ffmpeg-install/bin"
+          ls -la
           ./ffmpeg.exe -hide_banner -decoders | grep libmpeghdec
-          ./ffmpeg.exe -hide_banner -buildconf
-
-      - name: Upload configure log on failure
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: ffmpeg-config-log
-          path: ffmpeg/ffbuild/config.log
-          if-no-files-found: ignore
+          ./ffmpeg.exe -hide_banner -version
 
       - name: Package artifact
         run: |
           set -euo pipefail
-          mkdir -p artifact
-          cp ffmpeg/ffmpeg.exe artifact/
-          cp ffmpeg/ffprobe.exe artifact/
-          cp ffmpeg/LICENSE.md artifact/FFmpeg-LICENSE.md
-          cp mpeghdec/LICENSE.txt artifact/libmpeghdec-LICENSE.txt
-          cp mpeghdec/AUTHORS.md artifact/libmpeghdec-AUTHORS.md
-          7z a ffmpeg-windows-x64-libmpeghdec.zip ./artifact/*
+          workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
+          cd "$workspace/ffmpeg-install"
+          7z a "$workspace/ffmpeg-windows-x64-libmpeghdec.zip" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6

@@ -85,7 +85,7 @@ jobs:
           cd ffmpeg
 
           # Apply patch: default libmpeghdec to stereo when no channel layout is specified
-          patch -p1 < "$workspace/libmpeghdec-default-stereo.patch"
+          patch -p1 < "$workspace/ffmpeg/libmpeghdec-default-stereo.patch"
 
           ./configure \
             --prefix="$install_prefix" \

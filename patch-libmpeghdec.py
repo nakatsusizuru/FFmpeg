@@ -26,7 +26,7 @@ new_compare = '''    for (size_t i = 0; i < FF_ARRAY_ELEMS(channel_layout_masks)
             if (!av_channel_layout_compare(layout, &ch_layout))
                 return i;
             if (layout->nb_channels == ch_layout.nb_channels &&
-                av_channel_layout_subset(layout, ch_layout.mask))
+                av_channel_layout_subset(layout, channel_layout_masks[i]))
                 return i;
         }
     }

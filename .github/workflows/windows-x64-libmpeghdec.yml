@@ -74,7 +74,6 @@ jobs:
           install_prefix="$workspace/ffmpeg-install"
 
           export PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig:$deps_prefix/share/pkgconfig"
-          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
 
           cd ffmpeg
 

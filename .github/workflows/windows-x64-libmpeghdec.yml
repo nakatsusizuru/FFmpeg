@@ -159,9 +159,7 @@ jobs:
         run: |
           set -euo pipefail
           cd ffmpeg
-          echo "=== CONFIG_FFMPEG/FFPROBE status ==="
-          grep -E "CONFIG_FFMPEG|CONFIG_FFPROBE" config_components.h
-          make -j"$(nproc)"
+          make -j"$(nproc)" ffmpeg ffprobe
           make install-progs
 
       - name: Verify binaries

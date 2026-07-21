@@ -16,6 +16,7 @@ old_compare = '''    for (size_t i = 0; i < FF_ARRAY_ELEMS(channel_layout_masks)
                 return i;
         }
     }
+
     return 0;'''
 
 new_compare = '''    for (size_t i = 0; i < FF_ARRAY_ELEMS(channel_layout_masks); ++i) {
@@ -29,6 +30,7 @@ new_compare = '''    for (size_t i = 0; i < FF_ARRAY_ELEMS(channel_layout_masks)
                 return i;
         }
     }
+
     return 0;'''
 
 if old_compare not in text:

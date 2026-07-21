@@ -85,7 +85,7 @@ jobs:
 
           cd ffmpeg
 
-          # Patch libmpeghdec wrapper: default to stereo when no channel layout is specified
+          # Patch libmpeghdec wrapper: accept custom-ordered layouts and default to 22.2
           python "$workspace/ffmpeg/patch-libmpeghdec.py"
 
           ./configure \

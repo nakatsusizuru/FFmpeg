@@ -102,7 +102,7 @@ jobs:
             --enable-ffprobe \
             --pkg-config="$PKG_CONFIG" \
             --extra-cflags="-I$deps_prefix/include" \
-            --extra-ldflags="-static -L$deps_prefix/lib" \
+            --extra-ldflags="-L$deps_prefix/lib" \
             --extra-libs="-static-libgcc -static-libstdc++ -lstdc++ -lwinpthread -lmpeghdec"
 
           grep -E "libmpeghdec|nonfree|License|ffmpeg|ffprobe" ffbuild/config.log | tail -n 80 || true

@@ -1,0 +1,152 @@
+name: Windows x64 FFmpeg with libmpeghdec
+
+on:
+  workflow_dispatch:
+    inputs:
+      mpeghdec_repository:
+        description: GitHub repository to use for libmpeghdec
+        required: true
+        default: Fraunhofer-IIS/mpeghdec
+      mpeghdec_ref:
+        description: Branch, tag, or commit to use for libmpeghdec
+        required: true
+        default: main
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - ".github/workflows/windows-x64-libmpeghdec.yml"
+      - "configure"
+      - "ffbuild/**"
+      - "fftools/**"
+      - "libavcodec/**"
+      - "libavdevice/**"
+      - "libavfilter/**"
+      - "libavformat/**"
+      - "libavutil/**"
+      - "libswresample/**"
+      - "libswscale/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows x64
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout FFmpeg
+        uses: actions/checkout@v4
+        with:
+          path: ffmpeg
+
+      - name: Checkout libmpeghdec
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.mpeghdec_repository || 'Fraunhofer-IIS/mpeghdec' }}
+          ref: ${{ github.event.inputs.mpeghdec_ref || 'main' }}
+          path: mpeghdec
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            git
+            make
+            nasm
+            yasm
+            pkgconf
+            diffutils
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkgconf
+
+      - name: Build and install libmpeghdec
+        run: |
+          set -euo pipefail
+
+          cmake -S mpeghdec -B build-mpeghdec -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PWD/deps/mingw64" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -Dmpeghdec_BUILD_DECODER=ON \
+            -Dmpeghdec_BUILD_UIMANAGER=OFF \
+            -Dmpeghdec_BUILD_BINARIES=OFF \
+            -Dmpeghdec_BUILD_DOC=OFF
+
+          cmake --build build-mpeghdec --config Release
+          cmake --install build-mpeghdec --config Release
+
+          pc_file="$PWD/deps/mingw64/share/pkgconfig/mpeghdec.pc"
+          sed -i 's/Libs: \(.*\)$/Libs: \1 -lstdc++/' "$pc_file"
+
+          export PKG_CONFIG_PATH="$PWD/deps/mingw64/share/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+          pkg-config --define-prefix --modversion mpeghdec
+          pkg-config --define-prefix --cflags --libs mpeghdec
+
+      - name: Configure FFmpeg
+        run: |
+          set -euo pipefail
+          cd ffmpeg
+
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/deps/mingw64/share/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+
+          ./configure \
+            --prefix="$GITHUB_WORKSPACE/ffmpeg-install" \
+            --target-os=mingw32 \
+            --arch=x86_64 \
+            --enable-static \
+            --disable-shared \
+            --disable-doc \
+            --disable-debug \
+            --enable-nonfree \
+            --enable-libmpeghdec \
+            --pkg-config=pkg-config \
+            --extra-cflags="-I$GITHUB_WORKSPACE/deps/mingw64/include" \
+            --extra-ldflags="-L$GITHUB_WORKSPACE/deps/mingw64/lib" \
+            --extra-libs="-lstdc++"
+
+          grep -E "libmpeghdec|nonfree|License" config.log | tail -n 80 || true
+          grep "CONFIG_LIBMPEGHDEC_DECODER=yes" config.h
+
+      - name: Build FFmpeg
+        run: |
+          set -euo pipefail
+          cd ffmpeg
+          make -j"$(nproc)" ffmpeg ffprobe
+          make install-progs
+
+      - name: Verify binaries
+        run: |
+          set -euo pipefail
+          "$GITHUB_WORKSPACE/ffmpeg/ffmpeg.exe" -hide_banner -decoders | grep libmpeghdec
+          "$GITHUB_WORKSPACE/ffmpeg/ffmpeg.exe" -hide_banner -buildconf
+
+      - name: Package artifact
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+          cp ffmpeg/ffmpeg.exe artifact/
+          cp ffmpeg/ffprobe.exe artifact/
+          cp ffmpeg/LICENSE.md artifact/FFmpeg-LICENSE.md
+          cp mpeghdec/LICENSE.txt artifact/libmpeghdec-LICENSE.txt
+          cp mpeghdec/AUTHORS.md artifact/libmpeghdec-AUTHORS.md
+          7z a ffmpeg-windows-x64-libmpeghdec.zip ./artifact/*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-windows-x64-libmpeghdec
+          path: ffmpeg-windows-x64-libmpeghdec.zip
+          if-no-files-found: error

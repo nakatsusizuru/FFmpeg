@@ -49,6 +49,7 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-python
             mingw-w64-x86_64-SDL2
 
       - name: Build and install libmpeghdec
@@ -85,7 +86,7 @@ jobs:
           cd ffmpeg
 
           # Patch libmpeghdec wrapper: default to stereo when no channel layout is specified
-          python3 "$workspace/ffmpeg/patch-libmpeghdec.py"
+          python "$workspace/ffmpeg/patch-libmpeghdec.py"
 
           ./configure \
             --prefix="$install_prefix" \

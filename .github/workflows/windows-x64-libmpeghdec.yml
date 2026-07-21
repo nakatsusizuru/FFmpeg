@@ -118,7 +118,7 @@ jobs:
             --extra-libs="-lstdc++"
 
           grep -E "libmpeghdec|nonfree|License" config.log | tail -n 80 || true
-          grep "CONFIG_LIBMPEGHDEC_DECODER=yes" config.h
+          grep "#define CONFIG_LIBMPEGHDEC_DECODER 1" config.h
 
       - name: Build FFmpeg
         run: |
@@ -132,6 +132,14 @@ jobs:
           set -euo pipefail
           "$GITHUB_WORKSPACE/ffmpeg/ffmpeg.exe" -hide_banner -decoders | grep libmpeghdec
           "$GITHUB_WORKSPACE/ffmpeg/ffmpeg.exe" -hide_banner -buildconf
+
+      - name: Upload configure log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-config-log
+          path: ffmpeg/config.log
+          if-no-files-found: ignore
 
       - name: Package artifact
         run: |

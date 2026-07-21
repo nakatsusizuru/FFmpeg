@@ -141,7 +141,6 @@ jobs:
             --enable-libmpeghdec
             --enable-ffmpeg
             --enable-ffprobe
-            --enable-threads
             --pkg-config=pkg-config
             --extra-cflags="-I$deps_prefix/include -DMPEGHDEC_STATIC"
             --extra-ldflags="-L$deps_prefix/lib"

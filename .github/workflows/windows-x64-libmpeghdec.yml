@@ -159,15 +159,16 @@ jobs:
         run: |
           set -euo pipefail
           cd ffmpeg
-          make -j"$(nproc)" ffmpeg ffprobe
-          make install-progs
+          make -j"$(nproc)"
 
       - name: Verify binaries
         run: |
           set -euo pipefail
           workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
-          "$workspace/ffmpeg/ffmpeg.exe" -hide_banner -decoders | grep libmpeghdec
-          "$workspace/ffmpeg/ffmpeg.exe" -hide_banner -buildconf
+          cd "$workspace/ffmpeg"
+          ls -la ffmpeg.exe ffprobe.exe
+          ./ffmpeg.exe -hide_banner -decoders | grep libmpeghdec
+          ./ffmpeg.exe -hide_banner -buildconf
 
       - name: Upload configure log on failure
         if: failure()

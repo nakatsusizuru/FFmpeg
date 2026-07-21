@@ -1,0 +1,15 @@
+--- a/libavcodec/libmpeghdec.c
++++ b/libavcodec/libmpeghdec.c
+@@ -108,7 +108,10 @@ static av_cold int mpegh3dadec_init(AVCodecContext *avctx)
+     MPEGH3DADecContext *s = avctx->priv_data;
+ 
+     if (avctx->ch_layout.nb_channels == 0) {
+-        av_log(avctx, AV_LOG_ERROR, "Channel layout needs to be specified\n");
+-        return AVERROR(EINVAL);
++        av_log(avctx, AV_LOG_WARNING,
++               "No channel layout specified, defaulting to stereo. "
++               "Use -ch_layout to override (e.g. -ch_layout 5.1).\n");
++        av_channel_layout_default(&avctx->ch_layout, 2);
+     } else if ((cicp = channel_layout_to_cicp(&avctx->ch_layout)) <= 0) {
+         av_log(avctx, AV_LOG_ERROR, "Unsupported channel layout\n");
+         return AVERROR(EINVAL);

@@ -73,7 +73,14 @@ jobs:
           deps_prefix="$workspace/deps/mingw64"
           install_prefix="$workspace/ffmpeg-install"
 
+          export PATH="/mingw64/bin:$PATH"
+          export PKG_CONFIG="/mingw64/bin/pkg-config"
           export PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig:$deps_prefix/share/pkgconfig:/mingw64/lib/pkgconfig"
+
+          echo "=== pkg-config info ==="
+          which pkg-config
+          pkg-config --version
+          pkg-config --list-all | grep -i sdl || true
 
           cd ffmpeg
 
@@ -91,7 +98,7 @@ jobs:
             --enable-ffprobe \
             --enable-ffplay \
             --enable-sdl2 \
-            --pkg-config=pkg-config \
+            --pkg-config="$PKG_CONFIG" \
             --extra-cflags="-I$deps_prefix/include -DMPEGHDEC_STATIC" \
             --extra-ldflags="-static -L$deps_prefix/lib" \
             --extra-libs="-static-libgcc -static-libstdc++ -lstdc++ -lwinpthread -Wl,-Bstatic -lmpeghdec"

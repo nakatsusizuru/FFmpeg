@@ -114,7 +114,7 @@ jobs:
           deps_prefix="$workspace/deps/mingw64"
           cat > /tmp/test_mpeghdec.cpp <<'EOF'
           #include <cstdio>
-          #include <mpeghdecoder.h>
+          #include <mpeghdec/mpeghdecoder.h>
           int main() {
               int cicps[] = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 17, 19};
               for (size_t i = 0; i < sizeof(cicps)/sizeof(cicps[0]); ++i) {

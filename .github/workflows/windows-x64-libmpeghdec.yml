@@ -1,4 +1,4 @@
-name: Windows x64 FFmpeg with libmpeghdec (Simple)
+name: Windows x64 FFmpeg with libmpeghdec (MSVC)
 
 on:
   workflow_dispatch:
@@ -12,11 +12,8 @@ permissions:
 
 jobs:
   build:
-    name: Build Windows x64
+    name: Build Windows x64 with MSVC
     runs-on: windows-latest
-    defaults:
-      run:
-        shell: msys2 {0}
 
     steps:
       - name: Checkout FFmpeg
@@ -31,7 +28,7 @@ jobs:
           ref: main
           path: mpeghdec
 
-      - name: Set up MSYS2
+      - name: Set up MSYS2 (configure/make only)
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -45,43 +42,55 @@ jobs:
             pkgconf
             diffutils
             p7zip
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-python
-            mingw-w64-x86_64-SDL2
 
-      - name: Build and install libmpeghdec
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build and install libmpeghdec (MSVC)
+        shell: cmd
         run: |
-          set -euo pipefail
-          workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
-          deps_prefix="$workspace/deps/mingw64"
-
-          cmake -S mpeghdec -B build-mpeghdec -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$deps_prefix" \
-            -DBUILD_SHARED_LIBS=ON \
-            -DCMAKE_CXX_FLAGS="-D_SH_DENYNO=0x40 -D_S_IREAD=0400 -D_S_IWRITE=0200"
-
-          cmake --build build-mpeghdec --config Release
+          set deps_prefix=%GITHUB_WORKSPACE%\deps\msvc
+          cmake -S mpeghdec -B build-mpeghdec -G "Visual Studio 17 2022" -A x64 ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_INSTALL_PREFIX="%deps_prefix%" ^
+            -DBUILD_SHARED_LIBS=OFF
+          cmake --build build-mpeghdec --config Release --parallel
           cmake --install build-mpeghdec --config Release
 
-      - name: Configure FFmpeg
+      - name: Diagnostic libmpeghdec init (MSVC)
+        shell: cmd
+        run: |
+          set deps_prefix=%GITHUB_WORKSPACE%\deps\msvc
+          (
+            echo #include ^<cstdio^>
+            echo #include ^<mpeghdec/mpeghdecoder.h^>
+            echo int main^(^) {
+            echo     int cicps[] = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 17, 19};
+            echo     for ^(size_t i = 0; i ^< sizeof^(cicps^)/sizeof^(cicps[0]^); ++i^) {
+            echo         int cicp = cicps[i];
+            echo         mpeghdecoder_handle* h = mpeghdecoder_init^(cicp^);
+            echo         printf^("cicp=%%2d -> %%p\n", cicp, ^(void*^)h^);
+            echo         if ^(h^) mpeghdecoder_free^(h^);
+            echo     }
+            echo     return 0;
+            echo }
+          ) > %TEMP%\test_mpeghdec.cpp
+          cl /EHsc /O2 /I"%deps_prefix%\include" %TEMP%\test_mpeghdec.cpp ^
+             /link /LIBPATH:"%deps_prefix%\lib" mpeghdec.lib
+          %TEMP%\test_mpeghdec.exe
+
+      - name: Configure FFmpeg (MSVC toolchain)
+        shell: msys2 {0}
         run: |
           set -euo pipefail
           workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
-          deps_prefix="$workspace/deps/mingw64"
+          deps_prefix="$workspace/deps/msvc"
           install_prefix="$workspace/ffmpeg-install"
 
-          export PATH="/mingw64/bin:$PATH"
-          export PKG_CONFIG="/mingw64/bin/pkg-config"
-          export PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig:$deps_prefix/share/pkgconfig:/mingw64/lib/pkgconfig"
-
-          echo "=== pkg-config info ==="
-          which pkg-config
-          pkg-config --version
-          pkg-config --list-all | grep -i sdl || true
+          export PATH="/c/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.40.33807/bin/Hostx64/x64:$PATH"
 
           cd ffmpeg
 
@@ -89,8 +98,9 @@ jobs:
           python "$workspace/ffmpeg/patch-libmpeghdec.py"
 
           ./configure \
+            --toolchain=msvc \
             --prefix="$install_prefix" \
-            --target-os=mingw32 \
+            --target-os=win64 \
             --arch=x86_64 \
             --enable-static \
             --disable-shared \
@@ -100,66 +110,28 @@ jobs:
             --enable-libmpeghdec \
             --enable-ffmpeg \
             --enable-ffprobe \
-            --pkg-config="$PKG_CONFIG" \
             --extra-cflags="-I$deps_prefix/include" \
             --extra-ldflags="-L$deps_prefix/lib" \
-            --extra-libs="-static-libgcc -static-libstdc++ -lstdc++ -lwinpthread -lmpeghdec"
+            --extra-libs="mpeghdec.lib"
 
           grep -E "libmpeghdec|nonfree|License|ffmpeg|ffprobe" ffbuild/config.log | tail -n 80 || true
 
-      - name: Diagnostic libmpeghdec init
-        run: |
-          set -euo pipefail
-          workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
-          deps_prefix="$workspace/deps/mingw64"
-          cat > /tmp/test_mpeghdec.cpp <<'EOF'
-          #include <cstdio>
-          #include <mpeghdec/mpeghdecoder.h>
-          int main() {
-              int cicps[] = {1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 17, 19};
-              for (size_t i = 0; i < sizeof(cicps)/sizeof(cicps[0]); ++i) {
-                  int cicp = cicps[i];
-                  mpeghdecoder_handle* h = mpeghdecoder_init(cicp);
-                  printf("cicp=%2d -> %p\n", cicp, (void*)h);
-                  if (h) mpeghdecoder_free(h);
-              }
-              return 0;
-          }
-          EOF
-          g++ -static-libgcc -static-libstdc++ -o /tmp/test_mpeghdec.exe /tmp/test_mpeghdec.cpp \
-            -I"$deps_prefix/include" -L"$deps_prefix/lib" -lmpeghdec -lwinpthread || true
-          if [ -f /tmp/test_mpeghdec.exe ]; then
-            PATH="$deps_prefix/bin:/mingw64/bin:$PATH" /tmp/test_mpeghdec.exe || true
-          fi
-
       - name: Build FFmpeg
+        shell: msys2 {0}
         run: |
           set -euo pipefail
           cd ffmpeg
           make -j"$(nproc)"
 
       - name: Install FFmpeg
+        shell: msys2 {0}
         run: |
           set -euo pipefail
           cd ffmpeg
           make install
 
-      - name: Copy dependency DLLs
-        run: |
-          set -euo pipefail
-          workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
-          deps_prefix="$workspace/deps/mingw64"
-          install_prefix="$workspace/ffmpeg-install"
-          cp -v "$deps_prefix/bin/libmpeghdec.dll" "$install_prefix/bin/" || true
-          cp -v "/mingw64/bin/libwinpthread-1.dll" "$install_prefix/bin/" || true
-          cp -v "/mingw64/bin/libgcc_s_seh-1.dll" "$install_prefix/bin/" || true
-          cp -v "/mingw64/bin/libstdc++-6.dll" "$install_prefix/bin/" || true
-          cp -v "/mingw64/bin/libbz2-1.dll" "$install_prefix/bin/" || true
-          cp -v "/mingw64/bin/libiconv-2.dll" "$install_prefix/bin/" || true
-          cp -v "/mingw64/bin/liblzma-5.dll" "$install_prefix/bin/" || true
-          cp -v "/mingw64/bin/zlib1.dll" "$install_prefix/bin/" || true
-
       - name: Verify binaries
+        shell: msys2 {0}
         run: |
           set -euo pipefail
           workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
@@ -169,15 +141,16 @@ jobs:
           ./ffmpeg.exe -hide_banner -version
 
       - name: Package artifact
+        shell: msys2 {0}
         run: |
           set -euo pipefail
           workspace="$(cygpath -u "$GITHUB_WORKSPACE")"
           cd "$workspace/ffmpeg-install"
-          7z a "$workspace/ffmpeg-windows-x64-libmpeghdec.zip" .
+          7z a "$workspace/ffmpeg-windows-x64-libmpeghdec-msvc.zip" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: ffmpeg-windows-x64-libmpeghdec
-          path: ffmpeg-windows-x64-libmpeghdec.zip
+          name: ffmpeg-windows-x64-libmpeghdec-msvc
+          path: ffmpeg-windows-x64-libmpeghdec-msvc.zip
           if-no-files-found: error
